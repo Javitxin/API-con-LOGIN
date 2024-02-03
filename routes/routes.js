@@ -2,18 +2,19 @@ const express = require('express');
 const router = express.Router();
 const users = require('../data/users');
 const { generateToken, verifyToken } = require('../middlewares/middlewares');
+const axios = require('axios');
 
-router.get('/', (req, res)=>{
-
-    /*if(req.session.token) {
+router.get('/', (req, res) => {
+    const token = req.session.token;
+    if (req.session.token) {
         res.send(`
             <a href="/search">Search</a>
             <form action="/logout" method="post">
             <button type="submit">Cerrar sesion</button>
             </form>
         `)
-        
-    } else {*/
+
+    } else {
         const loginForm = `
         <form action="/login" method="post">
           <label for="username">Usuario:</label>
@@ -26,9 +27,9 @@ router.get('/', (req, res)=>{
         </form>
         <a href="/search">Search</a>
       `;
-      res.send(loginForm);
+        res.send(loginForm);
     }
-);
+});
 
 router.post('/login', (req, res) => {
     const { username, password } = req.body;
@@ -39,57 +40,62 @@ router.post('/login', (req, res) => {
     if (user) {
         const token = generateToken(user);
         req.session.token = token;
-        res.redirect('/character');
+        res.redirect('/search');
     } else {
         res.status(401).json({ mensaje: 'Credenciales incorrectas' });
     }
 });
 
-router.get('/search', verifyToken, (req,res) => {
+router.get('/search', verifyToken, (req, res) => {
     res.send(`
-    <form action="/character" method="get">
-    <label for="character">Buscar personaje:</label>
-    <input type="text" id="character" name="character">
-    <buton type="submit" >Mostrar todos los personajes</button>
-    </form>
-    
-    <button type="submit" onclick="getCharacter()">Buscar</button>
+        <label for="name">Buscar personaje:</label>
+        <input type="text" id="name" name="name">
+        <button onclick="location.href='/character/' + document.getElementById('name').value">Buscar</button>
+        <a href="/">Home</a>
+        <form action="/logout" method="post">
+            <button type="submit">Cerrar sesion</button>
+        </form>
     `)
-    res.redirect('/character');
 });
 
-router.get('/character',verifyToken, async (req,res) => {
-    const characterName = req.query.name;
-    const url = `https://rickandmortyapi.com/api/character`
+router.get('/character', verifyToken, async (req, res) => {
     try {
         const response = await axios.get(url);
-        const character = response.data.results;
-        console.log(character);
+        const character = response.data.results
+            ;
         res.json(character)
-        req.redirect('/:name')
-
-    } catch(error) {
-        res.status(404).json({err: 'No se pudieron obtener los datos'})
+    } catch (error) {
+        res.status(404).json({ err: 'No se pudieron obtener los datos' })
     }
 });
 
-router.get('/:name', async (req,res) => {
-    const {name, status, species, gender, origin: {name: originName}, image} = character;
-    res.send(`
-    <h2>${name}</h2>
-    <p>${status}</p>
-    <p>${species}</p>
-    <p>${gender}</p>
-    <p>${originName}</p>
-    <img src="${image} aly="${name}">
-    
-    `)
+router.get('/character/:name', verifyToken, async (req, res) => {
+    const characterName = req.params.name;
+    const urlName = `https://rickandmortyapi.com/api/character/?name=${characterName}`
+    try {
+        const response = await axios.get(urlName);
+        const { name, status, species, gender, origin: { name: originName }, image } = response.data.results[0];
+
+        res.send(`
+            <h2>${name}</h2>
+            <p>${status}</p>
+            <p>${species}</p>
+            <p>${gender}</p>
+            <p>${originName}</p>
+            <img src="${image}" alt="${name}">
+            <form action="/logout" method="post">
+                <button type="submit">Cerrar sesion</button>
+            </form>
+        
+        `)
+    } catch (error) {
+        res.status(404).json({ err: 'No se pudo obtener el personaje' })
+    }
 })
 
-router.post('/logout', (req,res) => {
+router.post('/logout', (req, res) => {
     req.session.destroy();
     res.redirect('/');
-}) 
+})
 
-module.exports = router;
-
+module.exports = router; 
